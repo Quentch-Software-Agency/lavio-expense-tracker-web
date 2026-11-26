@@ -1,4 +1,4 @@
-# LAVIO Expense Tracker — Next.js landing page
+# LAVIO Money Tracker — Next.js landing page
 
 A responsive marketing website starter for LAVIO, built with the Next.js App Router, React and plain CSS. The design is component-friendly and uses reusable `SectionLabel` and `StoreLink` components plus data-driven feature/benefit grids.
 
@@ -33,7 +33,6 @@ public/
 
 The landing page is front-end only. App authentication, transaction storage, notifications, sync, PDF report generation and financial-health calculations need to be implemented in the mobile app/backend; this site describes those app capabilities and does not itself process financial data.
 
-
 ## Visual assets and app preview
 
 - Lucide icons are provided by `lucide-react`.
@@ -41,15 +40,14 @@ The landing page is front-end only. App authentication, transaction storage, not
 - Human lifestyle photography loads from Unsplash (`images.unsplash.com`); an internet connection is needed to display those images.
 - Add screenshots to `public/screenshots/dashboard.png`, `public/screenshots/budget.png`, and `public/screenshots/insights.png`. They render inside the smartphone frames in the App Preview section.
 
-
 ## LAVIO app screenshots supplied for this design
 
 The two supplied app screenshots are included in `public/screenshots/`:
+
 - `dashboard.png` — home / financial overview screen
 - `loans-savings.png` — loans, debts and savings screen
 
 The App Preview section displays both screenshots inside responsive smartphone frames. The website palette has been updated to the app's teal, navy, white and cool-light-grey visual language.
-
 
 ## Brand and content updates
 

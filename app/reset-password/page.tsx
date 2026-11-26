@@ -1,22 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import {
   LockKeyhole,
   Eye,
   EyeOff,
   CheckCircle2,
   ShieldCheck,
-  ArrowLeft,
 } from "lucide-react";
 import { createClient } from "../../lib/supabase/client";
 
 export default function ResetPasswordPage() {
-  const supabase = createClient();
-  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -29,50 +26,51 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function verifyResetLink() {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      const tokenHash = params.get("token_hash");
-      const type = params.get("type");
+    let mounted = true;
 
-      // Supabase PKCE flow
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
 
-        if (error) {
-          setError("This password reset link is invalid or has expired.");
-          setVerifying(false);
-          return;
-        }
-
+      if (event === "PASSWORD_RECOVERY" && session) {
         setValidLink(true);
         setVerifying(false);
-        return;
       }
+    });
 
-      // Supabase token-hash flow, if configured
-      if (tokenHash && type === "recovery") {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: "recovery",
-        });
+    const checkSession = async () => {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
 
-        if (error) {
-          setError("This password reset link is invalid or has expired.");
-          setVerifying(false);
-          return;
-        }
+      if (!mounted) return;
 
-        setValidLink(true);
+      // A session alone does not prove this is a recovery session.
+      // Wait for PASSWORD_RECOVERY instead.
+      if (error || !session) {
+        setError("Your password reset link is invalid or expired.");
         setVerifying(false);
-        return;
       }
+    };
 
-      setError("Invalid or expired password reset link.");
+    checkSession();
+
+    // Prevent the page from waiting indefinitely if no recovery event arrives.
+    const timeout = window.setTimeout(() => {
+      if (!mounted) return;
+
+      setValidLink(false);
+      setError("Your password reset link is invalid or expired.");
       setVerifying(false);
-    }
+    }, 10000);
 
-    verifyResetLink();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      window.clearTimeout(timeout);
+    };
   }, [supabase]);
 
   async function handleResetPassword(e: React.FormEvent<HTMLFormElement>) {

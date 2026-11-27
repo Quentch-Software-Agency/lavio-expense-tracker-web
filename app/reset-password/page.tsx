@@ -26,44 +26,23 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let mounted = true;
+    const params = new URLSearchParams(window.location.search);
+    const urlError = params.get("error");
 
-    // Only fall back to "expired" if no recovery event arrives.
-    const timeout = window.setTimeout(() => {
-      if (!mounted) return;
-      setError("Your password reset link is invalid or expired.");
-      setVerifying(false);
-    }, 10000);
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!mounted) return;
-
-      if (event === "PASSWORD_RECOVERY" && session) {
-        window.clearTimeout(timeout); // prevent the timeout from overwriting success
-        setValidLink(true);
-        setError("");
-        setVerifying(false);
-      }
-    });
-
-    // Surface errors Supabase puts in the URL (e.g. otp_expired).
-    const params = new URLSearchParams(window.location.hash.slice(1));
-    const urlError =
-      params.get("error_description") ||
-      new URLSearchParams(window.location.search).get("error_description");
     if (urlError) {
-      window.clearTimeout(timeout);
       setError("Your password reset link is invalid or expired.");
       setVerifying(false);
+      return;
     }
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      window.clearTimeout(timeout);
-    };
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (error || !data.user) {
+        setError("Your password reset link is invalid or expired.");
+      } else {
+        setValidLink(true);
+      }
+      setVerifying(false);
+    });
   }, [supabase]);
 
   async function handleResetPassword(e: React.FormEvent<HTMLFormElement>) {

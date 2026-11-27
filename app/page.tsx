@@ -172,7 +172,7 @@ function PhoneMockup({
     <div className={`phone-wrap ${className}`}>
       <div className="phone-frame">
         <div className="phone-screen">
-          <div className="phone-island" />
+          {/* <div className="phone-island" /> */}
           <Image
             src={src}
             alt={`${label} app screenshot`}

@@ -138,7 +138,7 @@ export default function ContactPage() {
             </p>
 
             <div className="card-action">
-              <span>Visit our website</span>
+              <span>Bookmark our website</span>
               <ArrowUpRight size={16} />
             </div>
           </a>

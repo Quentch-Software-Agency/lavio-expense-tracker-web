@@ -1,15 +1,56 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "../../lib/supabase/client";
 
 export default function ForgotPasswordPage() {
   const supabase = useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
+  const submittedEmail = useRef("");
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const queryEmail = searchParams.get("email");
+
+    if (!queryEmail) return;
+
+    const validEmail = queryEmail.trim();
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(validEmail)) {
+      setError("Please provide a valid email address.");
+      return;
+    }
+
+    if (!validEmail || submittedEmail.current === validEmail) return;
+
+    submittedEmail.current = validEmail;
+    setEmail(validEmail);
+
+    async function sendResetLink() {
+      setError("");
+      setLoading(true);
+
+      const { error } = await supabase.auth.resetPasswordForEmail(validEmail, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      });
+
+      setLoading(false);
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      setSuccess(true);
+    }
+
+    sendResetLink();
+  }, [searchParams, supabase]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,7 +82,9 @@ export default function ForgotPasswordPage() {
     >
       <h1>Forgot Password?</h1>
 
-      {success ? (
+      {loading ? (
+        <p>Sending password reset link...</p>
+      ) : success ? (
         <p>
           If an account exists for this email, you will receive a password
           recovery link.
@@ -77,7 +120,7 @@ export default function ForgotPasswordPage() {
               borderRadius: 8,
             }}
           >
-            {loading ? "Sending..." : "Send Reset Link"}
+            Send Reset Link
           </button>
         </form>
       )}

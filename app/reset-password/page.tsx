@@ -25,24 +25,75 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
+  // Verify the recovery session established by /auth/callback.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlError = params.get("error");
+    let mounted = true;
 
-    if (urlError) {
-      setError("Your password reset link is invalid or expired.");
-      setVerifying(false);
-      return;
+    async function verifyRecoverySession() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+
+        const urlError = params.get("error");
+        const errorDescription = params.get("error_description");
+
+        if (urlError || errorDescription) {
+          if (mounted) {
+            setError(
+              errorDescription ||
+                "Your password reset link is invalid or expired.",
+            );
+            setValidLink(false);
+            setVerifying(false);
+          }
+          return;
+        }
+
+        // Check that Supabase has an authenticated session.
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
+
+        if (sessionError || !sessionData.session) {
+          throw new Error(
+            "Your password reset link is invalid or expired. Please request a new one.",
+          );
+        }
+
+        // Verify the authenticated user with Supabase.
+        const { data, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !data.user) {
+          throw new Error(
+            "Unable to verify your account. Please request a new reset link.",
+          );
+        }
+
+        if (mounted) {
+          setValidLink(true);
+          setError("");
+        }
+      } catch (err) {
+        console.error("Password recovery verification:", err);
+
+        if (mounted) {
+          setValidLink(false);
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Your password reset link is invalid or expired.",
+          );
+        }
+      } finally {
+        if (mounted) {
+          setVerifying(false);
+        }
+      }
     }
 
-    supabase.auth.getUser().then(({ data, error }) => {
-      if (error || !data.user) {
-        setError("Your password reset link is invalid or expired.");
-      } else {
-        setValidLink(true);
-      }
-      setVerifying(false);
-    });
+    verifyRecoverySession();
+
+    return () => {
+      mounted = false;
+    };
   }, [supabase]);
 
   async function handleResetPassword(e: React.FormEvent<HTMLFormElement>) {
@@ -61,18 +112,39 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.updateUser({
-      password,
-    });
+    try {
+      // Confirm that the recovery session is still valid.
+      const { data, error: sessionError } = await supabase.auth.getSession();
 
-    setLoading(false);
+      if (sessionError || !data.session) {
+        throw new Error(
+          "Your recovery session has expired. Please request a new reset link.",
+        );
+      }
 
-    if (error) {
-      setError(error.message);
-      return;
+      // Update the user's password.
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+      });
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setSuccess(true);
+      setPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      console.error("Password update error:", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update your password. Please try again.",
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setSuccess(true);
   }
 
   if (verifying) {
@@ -125,8 +197,14 @@ export default function ResetPasswordPage() {
             <div className="error-icon">
               <LockKeyhole size={30} />
             </div>
+
             <h1>Link Expired</h1>
+
             <p>{error}</p>
+
+            <Link href="/forgot-password" className="primary-button">
+              Request a New Link
+            </Link>
           </div>
         ) : (
           <>
@@ -135,12 +213,14 @@ export default function ResetPasswordPage() {
             </div>
 
             <h1>Create a New Password</h1>
+
             <p className="subtitle">
               Choose a strong password to keep your LAVIO account secure.
             </p>
 
             <form onSubmit={handleResetPassword}>
               <label htmlFor="password">New Password</label>
+
               <div className="password-field">
                 <input
                   id="password"
@@ -149,8 +229,10 @@ export default function ResetPasswordPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   minLength={8}
+                  autoComplete="new-password"
                   required
                 />
+
                 <button
                   type="button"
                   className="eye-button"
@@ -162,6 +244,7 @@ export default function ResetPasswordPage() {
               </div>
 
               <label htmlFor="confirmPassword">Confirm New Password</label>
+
               <div className="password-field">
                 <input
                   id="confirmPassword"
@@ -170,8 +253,10 @@ export default function ResetPasswordPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   minLength={8}
+                  autoComplete="new-password"
                   required
                 />
+
                 <button
                   type="button"
                   className="eye-button"
@@ -192,7 +277,11 @@ export default function ResetPasswordPage() {
                 Your password must contain at least 8 characters.
               </p>
 
-              {error && <div className="error-message">{error}</div>}
+              {error && (
+                <div className="error-message" role="alert">
+                  {error}
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -241,7 +330,7 @@ const styles = `
     text-align: center;
   }
 
-  .logo {
+  .brand {
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -253,14 +342,11 @@ const styles = `
     margin-bottom: 35px;
   }
 
-  .logo-icon {
-    width: 42px;
-    height: 42px;
-    background: #E1F1F0;
-    color: #287D83;
-    border-radius: 12px;
-    display: grid;
-    place-items: center;
+  .brand small {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
   }
 
   .heading-icon,
@@ -274,11 +360,7 @@ const styles = `
     margin: 0 auto 20px;
   }
 
-  .heading-icon {
-    background: #E1F1F0;
-    color: #287D83;
-  }
-
+  .heading-icon,
   .success-icon {
     background: #E1F1F0;
     color: #287D83;
@@ -405,24 +487,6 @@ const styles = `
     color: #B54747;
     font-size: 13px;
     line-height: 1.5;
-  }
-
-  .back-link {
-    margin-top: 25px;
-  }
-
-  .back-link a {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    color: #287D83;
-    text-decoration: none;
-    font-size: 13px;
-    font-weight: 650;
-  }
-
-  .back-link a:hover {
-    color: #195C62;
   }
 
   .security-note {
